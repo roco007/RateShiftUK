@@ -1,21 +1,26 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { useSettings } from '../context/SettingsContext';
+import { useAuth } from '../context/AuthContext';
 import { calculateBreakEven } from '../services/calculator';
 import { getAIProvider, isMockMode } from '../services/ai';
+import { sendEmail, initEmailJS, isEmailConfigured } from '../services/email';
 import { EmailDraft } from '../types';
 import { Mail, Send, Sparkles, Loader2, CheckCircle, Clock, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export function EmailGenerator() {
   const { state, dispatch, getClient, getMortgage } = useApp();
-  const { settings, getActiveAIProvider } = useSettings();
+  const { settings, getActiveAIProvider, hasValidEmailJS } = useSettings();
+  const { user } = useAuth();
   const [generating, setGenerating] = useState(false);
+  const [sending, setSending] = useState<string | null>(null);
   const [selectedMortgageId, setSelectedMortgageId] = useState('');
   const [selectedDealIdx, setSelectedDealIdx] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   const activeProvider = getActiveAIProvider();
+  const emailConfigured = hasValidEmailJS();
 
   const handleGenerate = async () => {
     if (!selectedMortgageId) {
@@ -65,11 +70,52 @@ export function EmailGenerator() {
     }
   };
 
-  const handleSend = (draftId: string) => {
+  const handleSend = async (draftId: string) => {
     const draft = state.emailDrafts.find(d => d.id === draftId);
-    if (draft) {
-      dispatch({ type: 'UPDATE_EMAIL_DRAFT', payload: { ...draft, status: 'sent' } });
-      toast.success('Email sent to client!');
+    if (!draft) return;
+
+    const client = getClient(draft.clientId);
+    if (!client) {
+      toast.error('Client not found');
+      return;
+    }
+
+    // Check if email is configured
+    if (!emailConfigured) {
+      toast.error('Email not configured. Please add EmailJS credentials in Settings.');
+      return;
+    }
+
+    setSending(draftId);
+    try {
+      // Initialize EmailJS with the public key
+      initEmailJS(settings.emailjsPublicKey);
+
+      // Send the email
+      const result = await sendEmail(
+        settings.emailjsServiceId,
+        settings.emailjsTemplateId,
+        {
+          to_email: client.email,
+          to_name: client.name,
+          from_name: user?.name || 'RateShift UK',
+          subject: draft.subject,
+          message: draft.body,
+          reply_to: user?.email || 'noreply@rateshift.uk',
+        }
+      );
+
+      if (result.success) {
+        dispatch({ type: 'UPDATE_EMAIL_DRAFT', payload: { ...draft, status: 'sent' } });
+        toast.success(`Email sent to ${client.name}!`);
+      } else {
+        toast.error(`Failed to send email: ${result.error}`);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to send email';
+      toast.error(message);
+    } finally {
+      setSending(null);
     }
   };
 
@@ -98,6 +144,30 @@ export function EmailGenerator() {
           )}
         </div>
       </div>
+
+      {/* Email Configuration Status */}
+      {!emailConfigured && (
+        <div className="rounded-xl border border-orange-200 bg-orange-50 p-4 shadow-sm">
+          <div className="flex items-start gap-3">
+            <AlertCircle size={20} className="text-orange-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-orange-900">
+                Email sending not configured
+              </p>
+              <p className="text-xs text-orange-700 mt-1">
+                To send emails to clients, add your EmailJS credentials in{' '}
+                <button 
+                  onClick={() => dispatch({ type: 'SET_VIEW', payload: 'settings' })}
+                  className="underline font-medium hover:text-orange-900"
+                >
+                  Settings
+                </button>.
+                Free tier available at emailjs.com (200 emails/month).
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Generator */}
       <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
@@ -200,9 +270,14 @@ export function EmailGenerator() {
                     {draft.status === 'draft' && (
                       <button
                         onClick={() => handleSend(draft.id)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-medium hover:bg-emerald-700 flex-shrink-0"
+                        disabled={!emailConfigured || sending === draft.id}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-medium hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
                       >
-                        <Send size={12} /> Send
+                        {sending === draft.id ? (
+                          <><Loader2 size={12} className="animate-spin" /> Sending...</>
+                        ) : (
+                          <><Send size={12} /> Send</>
+                        )}
                       </button>
                     )}
                   </div>

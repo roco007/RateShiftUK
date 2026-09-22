@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { useSettings, AIProviderType } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
-import { Settings as SettingsIcon, Key, Sparkles, RotateCcw, CheckCircle, AlertCircle, Eye, EyeOff, LogOut, User, Shield } from 'lucide-react';
+import { Settings as SettingsIcon, Key, Sparkles, RotateCcw, CheckCircle, AlertCircle, Eye, EyeOff, LogOut, User, Shield, Mail } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export function SettingsPage() {
-  const { settings, updateSettings, resetSettings, getActiveAIProvider, hasValidOpenAIKey, hasValidGeminiKey } = useSettings();
+  const { settings, updateSettings, resetSettings, getActiveAIProvider, hasValidOpenAIKey, hasValidGeminiKey, hasValidEmailJS } = useSettings();
   const { user, logout, isDemoMode } = useAuth();
   const [showOpenAIKey, setShowOpenAIKey] = useState(false);
   const [showGeminiKey, setShowGeminiKey] = useState(false);
@@ -238,6 +238,79 @@ export function SettingsPage() {
                 <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite (Smallest – FREE)</option>
               </select>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Email Configuration */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+        <div className="flex items-center gap-3 mb-4">
+          <Mail size={20} className="text-gray-600" />
+          <h3 className="font-semibold text-gray-900">Email Configuration</h3>
+          {hasValidEmailJS() && (
+            <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-emerald-100 text-emerald-700">
+              ✓ Configured
+            </span>
+          )}
+        </div>
+        <p className="text-sm text-gray-500 mb-4">
+          Configure EmailJS to send mortgage advice emails directly to clients. Get your credentials at{' '}
+          <a href="https://www.emailjs.com/" target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline">
+            emailjs.com
+          </a>
+          {' '}(free tier: 200 emails/month).
+        </p>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              EmailJS Public Key
+            </label>
+            <input
+              type="text"
+              value={settings.emailjsPublicKey}
+              onChange={e => updateSettings({ emailjsPublicKey: e.target.value })}
+              placeholder="Enter your EmailJS public key"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Service ID
+            </label>
+            <input
+              type="text"
+              value={settings.emailjsServiceId}
+              onChange={e => updateSettings({ emailjsServiceId: e.target.value })}
+              placeholder="e.g., service_gmail"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Template ID
+            </label>
+            <input
+              type="text"
+              value={settings.emailjsTemplateId}
+              onChange={e => updateSettings({ emailjsTemplateId: e.target.value })}
+              placeholder="e.g., template_mortgage_advice"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            />
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <p className="text-xs text-blue-800">
+              <strong>Setup Guide:</strong>
+            </p>
+            <ol className="text-xs text-blue-700 mt-2 space-y-1 list-decimal list-inside">
+              <li>Sign up at <a href="https://www.emailjs.com/" target="_blank" rel="noopener noreferrer" className="underline">emailjs.com</a> (free tier available)</li>
+              <li>Add your email service (Gmail, Outlook, etc.)</li>
+              <li>Create an email template with variables: {'{{to_email}}'}, {'{{to_name}}'}, {'{{subject}}'}, {'{{message}}'}</li>
+              <li>Copy your Public Key, Service ID, and Template ID here</li>
+            </ol>
           </div>
         </div>
       </div>

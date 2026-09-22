@@ -12,11 +12,12 @@ RateShift UK helps UK homeowners and independent mortgage brokers navigate rate 
 2. **Automated ERC Break-Even Calculator** – Mathematical model showing exact net savings/loss of switching early
 3. **BoE Rate Drop Tracking & Recommendation Engine** – Live rate monitoring with visual charts
 4. **AI Email Draft Generator** – One-click creation of personalized client update emails with savings figures
-5. **Broker Back-Book Alerts** – Automated notifications at 180, 120, 90, 60, and 30 days before deal expiration
-6. **Client-facing PDF Report Generator** – Professional reports with AI-generated summaries
-7. **Google Sign-In** – Secure authentication with Google OAuth + demo mode
-8. **Multi-Provider AI** – Choose between OpenAI GPT, Google Gemini, or Mock mode
-9. **Settings Dashboard** – Manage API keys, AI provider, and preferences
+5. **Email Sending** – Send emails directly to clients via EmailJS (free tier: 200 emails/month)
+6. **Broker Back-Book Alerts** – Automated notifications at 180, 120, 90, 60, and 30 days before deal expiration
+7. **Client-facing PDF Report Generator** – Professional reports with AI-generated summaries
+8. **Google Sign-In** – Secure authentication with Google OAuth + demo mode
+9. **Multi-Provider AI** – Choose between OpenAI GPT, Google Gemini, or Mock mode
+10. **Settings Dashboard** – Manage API keys, AI provider, email configuration, and preferences
 
 ## Tech Stack
 
@@ -28,7 +29,8 @@ RateShift UK helps UK homeowners and independent mortgage brokers navigate rate 
 | PDF | jsPDF |
 | Icons | Lucide React |
 | Auth | Google Identity Services (OAuth 2.0) |
-| AI | OpenAI GPT-4o-mini / Google Gemini 2.0 Flash / Mock |
+| AI | OpenAI GPT-4o-mini / Google Gemini 3.8 Flash / Mock |
+| Email | EmailJS (client-side, no backend needed) |
 | State | React Context + localStorage |
 | Toast | react-hot-toast |
 
@@ -137,6 +139,9 @@ npm run dev
 | `VITE_OPENAI_MODEL` | No | OpenAI model (default: `gpt-4o-mini`) |
 | `VITE_GEMINI_API_KEY` | No | Google Gemini API key. If absent, Gemini provider unavailable. FREE tier available at aistudio.google.com |
 | `VITE_GEMINI_MODEL` | No | Gemini model (default: `gemini-3.8-flash`). All Flash models are FREE. |
+| `VITE_EMAILJS_PUBLIC_KEY` | No | EmailJS public key for sending emails. Free tier: 200 emails/month. |
+| `VITE_EMAILJS_SERVICE_ID` | No | EmailJS service ID (e.g., your email provider) |
+| `VITE_EMAILJS_TEMPLATE_ID` | No | EmailJS template ID with variables: `{{to_email}}`, `{{to_name}}`, `{{subject}}`, `{{message}}` |
 
 ```bash
 # .env
@@ -144,7 +149,10 @@ VITE_GOOGLE_CLIENT_ID=1234567890-abcdefg.apps.googleusercontent.com
 VITE_OPENAI_API_KEY=sk-your-key-here
 VITE_OPENAI_MODEL=gpt-4o-mini
 VITE_GEMINI_API_KEY=AIza-your-key-here
-VITE_GEMINI_MODEL=gemini-2.0-flash
+VITE_GEMINI_MODEL=gemini-3.8-flash
+VITE_EMAILJS_PUBLIC_KEY=your-emailjs-public-key
+VITE_EMAILJS_SERVICE_ID=service_gmail
+VITE_EMAILJS_TEMPLATE_ID=template_mortgage_advice
 ```
 
 ### Setting Up Google OAuth
@@ -156,6 +164,32 @@ VITE_GEMINI_MODEL=gemini-2.0-flash
 5. Select **Web application**
 6. Add your domain to **Authorized JavaScript origins** (e.g., `http://localhost:5173`)
 7. Copy the Client ID to your `.env` file
+
+### Setting Up EmailJS (Email Sending)
+
+EmailJS allows sending emails directly from the browser without a backend server.
+
+1. Go to [EmailJS](https://www.emailjs.com/) and sign up (free tier: 200 emails/month)
+2. Add an email service:
+   - Click **Email Services** → **Add New Service**
+   - Connect your email provider (Gmail, Outlook, etc.)
+   - Note your **Service ID** (e.g., `service_gmail`)
+3. Create an email template:
+   - Click **Email Templates** → **Create New Template**
+   - Set up your template with these variables:
+     - **To Email**: `{{to_email}}`
+     - **To Name**: `{{to_name}}`
+     - **Subject**: `{{subject}}`
+     - **Message**: `{{message}}`
+     - **From Name**: `{{from_name}}`
+     - **Reply To**: `{{reply_to}}`
+   - Note your **Template ID** (e.g., `template_mortgage_advice`)
+4. Get your Public Key:
+   - Go to **Account** → **General**
+   - Copy your **Public Key**
+5. Add credentials to `.env` or configure in the app's Settings page
+
+**Note:** You can also configure EmailJS credentials directly in the app's Settings page after logging in.
 
 ## Running
 
@@ -185,7 +219,7 @@ interface AIProvider {
 
 - **MockAIProvider**: Generates realistic, context-aware responses without API calls
 - **OpenAIProvider**: Uses GPT-4o-mini via OpenAI API
-- **GeminiProvider**: Uses Gemini 2.0 Flash via Google Generative Language API
+- **GeminiProvider**: Uses Gemini 3.8 Flash via Google Generative Language API (FREE tier available)
 
 Users can switch providers at any time in Settings. The active provider is shown in the header badge.
 

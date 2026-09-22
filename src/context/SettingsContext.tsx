@@ -10,6 +10,9 @@ interface SettingsState {
   geminiModel: string;
   notifications: boolean;
   theme: 'light' | 'dark';
+  emailjsPublicKey: string;
+  emailjsServiceId: string;
+  emailjsTemplateId: string;
 }
 
 interface SettingsContextType {
@@ -19,6 +22,7 @@ interface SettingsContextType {
   getActiveAIProvider: () => AIProviderType;
   hasValidOpenAIKey: () => boolean;
   hasValidGeminiKey: () => boolean;
+  hasValidEmailJS: () => boolean;
 }
 
 const SETTINGS_STORAGE_KEY = 'rateshift-settings';
@@ -31,6 +35,9 @@ const defaultSettings: SettingsState = {
   geminiModel: 'gemini-3.8-flash',
   notifications: true,
   theme: 'light',
+  emailjsPublicKey: '',
+  emailjsServiceId: '',
+  emailjsTemplateId: '',
 };
 
 const SettingsContext = createContext<SettingsContextType | null>(null);
@@ -69,6 +76,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   const hasValidOpenAIKey = () => settings.openaiKey.length > 10;
   const hasValidGeminiKey = () => settings.geminiKey.length > 10;
+  const hasValidEmailJS = () => 
+    settings.emailjsPublicKey.length > 0 && 
+    settings.emailjsServiceId.length > 0 && 
+    settings.emailjsTemplateId.length > 0;
 
   return (
     <SettingsContext.Provider value={{
@@ -78,6 +89,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       getActiveAIProvider,
       hasValidOpenAIKey,
       hasValidGeminiKey,
+      hasValidEmailJS,
     }}>
       {children}
     </SettingsContext.Provider>
