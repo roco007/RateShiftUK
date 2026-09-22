@@ -284,7 +284,7 @@ export function getAIProvider(type: AIProviderType, openaiKey?: string, geminiKe
       break;
     case 'gemini':
       if (geminiKey) {
-        provider = new GeminiProvider(geminiKey, geminiModel || 'gemini-2.0-flash');
+        provider = new GeminiProvider(geminiKey, geminiModel || 'gemini-3.8-flash');
       } else {
         provider = new MockAIProvider();
       }

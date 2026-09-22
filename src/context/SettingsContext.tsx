@@ -28,7 +28,7 @@ const defaultSettings: SettingsState = {
   openaiKey: '',
   geminiKey: '',
   openaiModel: 'gpt-4o-mini',
-  geminiModel: 'gemini-2.0-flash',
+  geminiModel: 'gemini-3.8-flash',
   notifications: true,
   theme: 'light',
 };

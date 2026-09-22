@@ -83,7 +83,7 @@ The app supports three AI providers, configurable in Settings:
 |----------|-------|----------|
 | **Mock** | Templates | Development, no API key needed |
 | **OpenAI** | GPT-4o-mini | High-quality email generation |
-| **Google Gemini** | Gemini 2.0 Flash | Cost-effective, fast responses |
+| **Google Gemini** | Gemini 3.8 Flash | Most intelligent Flash model (FREE tier) |
 
 All AI features work in Mock mode without any API keys. Keys are stored locally in the browser and never sent to our servers.
 
@@ -135,8 +135,8 @@ npm run dev
 | `VITE_GOOGLE_CLIENT_ID` | No | Google OAuth Client ID. If absent, only demo login is available. |
 | `VITE_OPENAI_API_KEY` | No | OpenAI API key. If absent, OpenAI provider unavailable. |
 | `VITE_OPENAI_MODEL` | No | OpenAI model (default: `gpt-4o-mini`) |
-| `VITE_GEMINI_API_KEY` | No | Google Gemini API key. If absent, Gemini provider unavailable. |
-| `VITE_GEMINI_MODEL` | No | Gemini model (default: `gemini-2.0-flash`) |
+| `VITE_GEMINI_API_KEY` | No | Google Gemini API key. If absent, Gemini provider unavailable. FREE tier available at aistudio.google.com |
+| `VITE_GEMINI_MODEL` | No | Gemini model (default: `gemini-3.8-flash`). All Flash models are FREE. |
 
 ```bash
 # .env

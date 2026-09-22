@@ -228,10 +228,14 @@ export function SettingsPage() {
                 onChange={e => updateSettings({ geminiModel: e.target.value })}
                 className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500"
               >
-                <option value="gemini-2.0-flash">Gemini 2.0 Flash (Fast, Cost-effective)</option>
-                <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash Lite (Fastest)</option>
-                <option value="gemini-1.5-pro">Gemini 1.5 Pro (Most Capable)</option>
-                <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                <option value="gemini-3.8-flash">Gemini 3.8 Flash ⭐ (Most Intelligent – FREE)</option>
+                <option value="gemini-3.7-flash">Gemini 3.7 Flash (High-speed – FREE)</option>
+                <option value="gemini-3.6-flash">Gemini 3.6 Flash (Balanced – FREE)</option>
+                <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash-Lite (Cost-efficient – FREE)</option>
+                <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash-Lite (Fastest – FREE)</option>
+                <option value="gemini-2.5-pro">Gemini 2.5 Pro (Complex reasoning – FREE)</option>
+                <option value="gemini-2.5-flash">Gemini 2.5 Flash (1M context – FREE)</option>
+                <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite (Smallest – FREE)</option>
               </select>
             </div>
           </div>
