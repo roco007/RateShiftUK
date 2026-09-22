@@ -1,39 +1,60 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useSettings } from '../context/SettingsContext';
 import { calculateBreakEven, getMonthsRemainingForMortgage } from '../services/calculator';
 import { getAIProvider, isMockMode } from '../services/ai';
-import { FileText, Download, Loader2, Sparkles } from 'lucide-react';
+import { FileText, Download, Loader2, Sparkles, AlertCircle } from 'lucide-react';
 import jsPDF from 'jspdf';
+import toast from 'react-hot-toast';
 
 export function Reports() {
   const { state, getClient, getMortgage } = useApp();
+  const { settings, getActiveAIProvider } = useSettings();
   const [selectedMortgageId, setSelectedMortgageId] = useState(state.mortgages[0]?.id || '');
   const [selectedDealIdx, setSelectedDealIdx] = useState(0);
   const [generating, setGenerating] = useState(false);
   const [reportContent, setReportContent] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const selectedMortgage = state.mortgages.find(m => m.id === selectedMortgageId);
   const client = selectedMortgage ? getClient(selectedMortgage.clientId) : null;
   const bestDeal = state.bestDeals[selectedDealIdx];
+  const activeProvider = getActiveAIProvider();
 
   const handleGenerateReport = async () => {
-    if (!selectedMortgage || !client || !bestDeal) return;
+    if (!selectedMortgage || !client || !bestDeal) {
+      toast.error('Please select a valid mortgage');
+      return;
+    }
     
     setGenerating(true);
+    setError(null);
     try {
       const breakEven = calculateBreakEven(selectedMortgage, bestDeal);
-      const ai = getAIProvider();
+      const ai = getAIProvider(
+        activeProvider,
+        settings.openaiKey,
+        settings.geminiKey,
+        settings.openaiModel,
+        settings.geminiModel
+      );
       const summary = await ai.generateReportSummary(client, selectedMortgage, breakEven);
       setReportContent(summary);
-    } catch (error) {
-      console.error('Failed to generate report:', error);
+      toast.success('Report generated successfully!');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to generate report';
+      setError(message);
+      toast.error(message);
     } finally {
       setGenerating(false);
     }
   };
 
   const handleDownloadPDF = () => {
-    if (!selectedMortgage || !client || !bestDeal || !reportContent) return;
+    if (!selectedMortgage || !client || !bestDeal || !reportContent) {
+      toast.error('Generate a report first');
+      return;
+    }
     
     const breakEven = calculateBreakEven(selectedMortgage, bestDeal);
     const doc = new jsPDF();
@@ -51,44 +72,45 @@ export function Reports() {
     doc.setTextColor(100, 100, 100);
     doc.text(`Generated: ${new Date().toLocaleDateString('en-GB')}`, 20, 48);
     doc.text(`Broker: Mark Thompson | RateShift UK`, 20, 54);
+    doc.text(`AI Provider: ${activeProvider === 'mock' ? 'Mock' : activeProvider === 'openai' ? 'OpenAI' : 'Google Gemini'}`, 20, 60);
     
     // Client Details
     doc.setDrawColor(229, 231, 235);
-    doc.line(20, 60, 190, 60);
+    doc.line(20, 65, 190, 65);
     
     doc.setFontSize(12);
     doc.setTextColor(0, 0, 0);
-    doc.text('Client Details', 20, 72);
+    doc.text('Client Details', 20, 77);
     
     doc.setFontSize(10);
-    doc.text(`Name: ${client.name}`, 20, 82);
-    doc.text(`Email: ${client.email}`, 20, 90);
-    doc.text(`Address: ${client.address}`, 20, 98);
+    doc.text(`Name: ${client.name}`, 20, 87);
+    doc.text(`Email: ${client.email}`, 20, 95);
+    doc.text(`Address: ${client.address}`, 20, 103);
     
     // Mortgage Details
     doc.setFontSize(12);
-    doc.text('Current Mortgage', 20, 115);
+    doc.text('Current Mortgage', 20, 120);
     
     doc.setFontSize(10);
-    doc.text(`Lender: ${selectedMortgage.lender}`, 20, 125);
-    doc.text(`Product: ${selectedMortgage.product}`, 20, 133);
-    doc.text(`Fixed Rate: ${selectedMortgage.fixedRate}%`, 20, 141);
-    doc.text(`Outstanding Balance: £${selectedMortgage.balance.toLocaleString()}`, 20, 149);
-    doc.text(`Monthly Payment: £${selectedMortgage.monthlyPayment.toLocaleString()}`, 20, 157);
-    doc.text(`Expiry Date: ${new Date(selectedMortgage.endDate).toLocaleDateString('en-GB')}`, 20, 165);
-    doc.text(`Months Remaining: ${getMonthsRemainingForMortgage(selectedMortgage)}`, 20, 173);
+    doc.text(`Lender: ${selectedMortgage.lender}`, 20, 130);
+    doc.text(`Product: ${selectedMortgage.product}`, 20, 138);
+    doc.text(`Fixed Rate: ${selectedMortgage.fixedRate}%`, 20, 146);
+    doc.text(`Outstanding Balance: £${selectedMortgage.balance.toLocaleString()}`, 20, 154);
+    doc.text(`Monthly Payment: £${selectedMortgage.monthlyPayment.toLocaleString()}`, 20, 162);
+    doc.text(`Expiry Date: ${new Date(selectedMortgage.endDate).toLocaleDateString('en-GB')}`, 20, 170);
+    doc.text(`Months Remaining: ${getMonthsRemainingForMortgage(selectedMortgage)}`, 20, 178);
     
     // Analysis
     doc.setFontSize(12);
-    doc.text('Break-Even Analysis', 20, 190);
+    doc.text('Break-Even Analysis', 20, 195);
     
     doc.setFontSize(10);
-    doc.text(`ERC Cost: £${breakEven.ercCost.toLocaleString()}`, 20, 200);
-    doc.text(`Best Available Rate: ${breakEven.bestAvailableRate}%`, 20, 208);
-    doc.text(`New Monthly Payment: £${Math.round(breakEven.newMonthlyPayment).toLocaleString()}`, 20, 216);
-    doc.text(`Monthly Saving: £${Math.round(breakEven.monthlySaving).toLocaleString()}`, 20, 224);
-    doc.text(`Months to Break Even: ${breakEven.monthsToBreakEven === 999 ? 'N/A' : breakEven.monthsToBreakEven}`, 20, 232);
-    doc.text(`Net Saving Over Term: £${breakEven.totalSavingOverRemainingTerm.toLocaleString()}`, 20, 240);
+    doc.text(`ERC Cost: £${breakEven.ercCost.toLocaleString()}`, 20, 205);
+    doc.text(`Best Available Rate: ${breakEven.bestAvailableRate}%`, 20, 213);
+    doc.text(`New Monthly Payment: £${Math.round(breakEven.newMonthlyPayment).toLocaleString()}`, 20, 221);
+    doc.text(`Monthly Saving: £${Math.round(breakEven.monthlySaving).toLocaleString()}`, 20, 229);
+    doc.text(`Months to Break Even: ${breakEven.monthsToBreakEven === 999 ? 'N/A' : breakEven.monthsToBreakEven}`, 20, 237);
+    doc.text(`Net Saving Over Term: £${breakEven.totalSavingOverRemainingTerm.toLocaleString()}`, 20, 245);
     
     // New page for recommendation
     doc.addPage();
@@ -124,6 +146,7 @@ export function Reports() {
     doc.text('RateShift UK | AI-Powered Mortgage Intelligence', 20, 286);
     
     doc.save(`RateShift-Report-${client.name.replace(/\s+/g, '-')}.pdf`);
+    toast.success('PDF downloaded!');
   };
 
   return (
@@ -183,6 +206,13 @@ export function Reports() {
             </button>
           </div>
         </div>
+        
+        {error && (
+          <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+            <AlertCircle size={16} />
+            <span>{error}</span>
+          </div>
+        )}
       </div>
 
       {/* Report Preview */}
@@ -190,8 +220,12 @@ export function Reports() {
         <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-gray-900">Report Preview</h3>
-            <span className="text-xs text-gray-500">
-              {isMockMode() ? 'AI Mock Mode' : 'AI Generated'}
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+              activeProvider === 'mock' ? 'bg-amber-100 text-amber-700' :
+              activeProvider === 'openai' ? 'bg-blue-100 text-blue-700' :
+              'bg-purple-100 text-purple-700'
+            }`}>
+              {activeProvider === 'mock' ? 'Mock Mode' : activeProvider === 'openai' ? 'OpenAI' : 'Gemini'}
             </span>
           </div>
           <div className="bg-gray-50 rounded-lg p-5 text-sm text-gray-700 whitespace-pre-line font-mono leading-relaxed max-h-96 overflow-y-auto">

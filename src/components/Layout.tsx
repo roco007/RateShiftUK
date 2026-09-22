@@ -1,9 +1,11 @@
 import React, { ReactNode } from 'react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
+import { useSettings } from '../context/SettingsContext';
 import { ViewType } from '../types';
 import { 
   LayoutDashboard, Users, Calculator, TrendingUp, Mail, Bell, FileText, 
-  Menu, X, Shield
+  Menu, X, Shield, Settings, LogOut
 } from 'lucide-react';
 
 const navItems: { view: ViewType; label: string; icon: ReactNode }[] = [
@@ -14,11 +16,15 @@ const navItems: { view: ViewType; label: string; icon: ReactNode }[] = [
   { view: 'emails', label: 'AI Emails', icon: <Mail size={20} /> },
   { view: 'alerts', label: 'Alerts', icon: <Bell size={20} /> },
   { view: 'reports', label: 'Reports', icon: <FileText size={20} /> },
+  { view: 'settings', label: 'Settings', icon: <Settings size={20} /> },
 ];
 
 export function Layout({ children }: { children: ReactNode }) {
   const { state, dispatch } = useApp();
+  const { user, logout } = useAuth();
+  const { getActiveAIProvider } = useSettings();
   const unreadAlerts = state.alerts.filter(a => a.status === 'unread').length;
+  const activeProvider = getActiveAIProvider();
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
@@ -75,13 +81,26 @@ export function Layout({ children }: { children: ReactNode }) {
 
         <div className="p-4 border-t border-slate-700">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-slate-600 rounded-full flex items-center justify-center text-sm font-bold">
-              MT
-            </div>
+            {user?.picture ? (
+              <img src={user.picture} alt={user.name} className="w-8 h-8 rounded-full" />
+            ) : (
+              <div className="w-8 h-8 bg-slate-600 rounded-full flex items-center justify-center text-sm font-bold">
+                {user?.name?.split(' ').map(n => n[0]).join('') || 'U'}
+              </div>
+            )}
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">Mark Thompson</p>
-              <p className="text-xs text-slate-400">Independent Broker</p>
+              <p className="text-sm font-medium truncate">{user?.name}</p>
+              <p className="text-xs text-slate-400 truncate">
+                {user?.provider === 'demo' ? 'Demo' : user?.email}
+              </p>
             </div>
+            <button
+              onClick={logout}
+              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+              title="Sign out"
+            >
+              <LogOut size={16} />
+            </button>
           </div>
         </div>
       </aside>
@@ -102,8 +121,12 @@ export function Layout({ children }: { children: ReactNode }) {
           </h2>
           
           <div className="ml-auto flex items-center gap-3">
-            <span className="hidden sm:inline text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded-full font-medium">
-              Demo Mode
+            <span className={`hidden sm:inline text-xs px-2 py-1 rounded-full font-medium ${
+              activeProvider === 'mock' ? 'bg-amber-100 text-amber-800' :
+              activeProvider === 'openai' ? 'bg-blue-100 text-blue-800' :
+              'bg-purple-100 text-purple-800'
+            }`}>
+              AI: {activeProvider === 'mock' ? 'Mock' : activeProvider === 'openai' ? 'OpenAI' : 'Gemini'}
             </span>
             <div className="text-right hidden sm:block">
               <p className="text-xs text-gray-500">{state.clients.length} clients</p>

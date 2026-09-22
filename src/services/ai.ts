@@ -1,7 +1,5 @@
 import { Client, Mortgage, BreakEvenResult, BestAvailableDeal } from '../types';
-
-const AI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY || '';
-const AI_MODEL = import.meta.env.VITE_OPENAI_MODEL || 'gpt-4o-mini';
+import { AIProviderType } from '../context/SettingsContext';
 
 interface AIProvider {
   generateClientEmail(client: Client, mortgage: Mortgage, breakEven: BreakEvenResult, deal: BestAvailableDeal): Promise<{ subject: string; body: string }>;
@@ -13,8 +11,7 @@ interface AIProvider {
  */
 class MockAIProvider implements AIProvider {
   async generateClientEmail(client: Client, mortgage: Mortgage, breakEven: BreakEvenResult, deal: BestAvailableDeal): Promise<{ subject: string; body: string }> {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    await new Promise(resolve => setTimeout(resolve, 1200));
     
     const firstName = client.name.split(' ')[0];
     const savingText = breakEven.totalSavingOverRemainingTerm > 0
@@ -40,7 +37,7 @@ Your ${mortgage.lender} ${mortgage.product} is currently at ${mortgage.fixedRate
 
 ${breakEven.ercCost > 0 ? `Even after paying the ERC of £${breakEven.ercCost.toLocaleString()}, switching puts you better off financially.` : 'With minimal ERC at this stage, switching is clearly beneficial.'}
 
-${breakEven.recommendedAction === 'switch-now' ? 'I recommend we act promptly – this rate may not be available for long.' : ''}
+I recommend we act promptly – this rate may not be available for long.
 
 Would you have 15 minutes this week for a quick call? I can have the full comparison ready within 48 hours.
 
@@ -68,7 +65,7 @@ Mark Thompson
 Independent Mortgage Advisor
 RateShift UK`;
     } else {
-      subject = `Your mortgage review – ${mortgage.endDate ? new Date(mortgage.endDate).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }) : ''} expiry planning`;
+      subject = `Your mortgage review – ${new Date(mortgage.endDate).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })} expiry planning`;
       body = `Dear ${firstName},
 
 I'm writing to let you know I'm keeping a close eye on your ${mortgage.lender} ${mortgage.product} which is due to expire on ${new Date(mortgage.endDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}.
@@ -91,7 +88,7 @@ RateShift UK`;
   }
 
   async generateReportSummary(client: Client, mortgage: Mortgage, breakEven: BreakEvenResult): Promise<string> {
-    await new Promise(resolve => setTimeout(resolve, 800));
+    await new Promise(resolve => setTimeout(resolve, 600));
     
     return `## Mortgage Review Summary for ${client.name}
 
@@ -119,7 +116,7 @@ ${breakEven.explanation}
 }
 
 /**
- * OpenAI AI Provider - uses real API when key is available
+ * OpenAI Provider
  */
 class OpenAIProvider implements AIProvider {
   private apiKey: string;
@@ -144,12 +141,13 @@ class OpenAIProvider implements AIProvider {
           { role: 'user', content: userPrompt },
         ],
         temperature: 0.7,
-        max_tokens: 1000,
+        max_tokens: 1500,
       }),
     });
 
     if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.status}`);
+      const err = await response.text();
+      throw new Error(`OpenAI API error (${response.status}): ${err}`);
     }
 
     const data = await response.json();
@@ -157,7 +155,7 @@ class OpenAIProvider implements AIProvider {
   }
 
   async generateClientEmail(client: Client, mortgage: Mortgage, breakEven: BreakEvenResult, deal: BestAvailableDeal): Promise<{ subject: string; body: string }> {
-    const systemPrompt = `You are a friendly, professional UK independent mortgage broker named Mark Thompson. You write clear, concise emails to clients about mortgage opportunities. Use British English. Always include specific figures. Keep emails under 250 words.`;
+    const systemPrompt = `You are a friendly, professional UK independent mortgage broker named Mark Thompson. You write clear, concise emails to clients about mortgage opportunities. Use British English. Always include specific figures. Keep emails under 250 words. Respond ONLY with valid JSON.`;
     
     const userPrompt = `Write a client email for:
 - Client: ${client.name}
@@ -168,14 +166,13 @@ class OpenAIProvider implements AIProvider {
 - Monthly saving: £${Math.round(breakEven.monthlySaving)}
 - Recommendation: ${breakEven.recommendedAction}
 
-Provide the email as JSON with "subject" and "body" fields.`;
+Respond with JSON: {"subject": "...", "body": "..."}`;
 
     const result = await this.callOpenAI(systemPrompt, userPrompt);
     try {
       const parsed = JSON.parse(result);
       return { subject: parsed.subject, body: parsed.body };
     } catch {
-      // Fallback to mock if parsing fails
       return new MockAIProvider().generateClientEmail(client, mortgage, breakEven, deal);
     }
   }
@@ -188,22 +185,120 @@ Provide the email as JSON with "subject" and "body" fields.`;
   }
 }
 
-// Provider singleton
-let provider: AIProvider | null = null;
+/**
+ * Google Gemini Provider
+ */
+class GeminiProvider implements AIProvider {
+  private apiKey: string;
+  private model: string;
 
-export function getAIProvider(): AIProvider {
-  if (!provider) {
-    if (AI_API_KEY) {
-      provider = new OpenAIProvider(AI_API_KEY, AI_MODEL);
-    } else {
-      provider = new MockAIProvider();
+  constructor(apiKey: string, model: string) {
+    this.apiKey = apiKey;
+    this.model = model;
+  }
+
+  private async callGemini(systemPrompt: string, userPrompt: string): Promise<string> {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`;
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              { text: `${systemPrompt}\n\n${userPrompt}` }
+            ]
+          }
+        ],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 1500,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`Gemini API error (${response.status}): ${err}`);
+    }
+
+    const data = await response.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  }
+
+  async generateClientEmail(client: Client, mortgage: Mortgage, breakEven: BreakEvenResult, deal: BestAvailableDeal): Promise<{ subject: string; body: string }> {
+    const systemPrompt = `You are a friendly, professional UK independent mortgage broker named Mark Thompson. You write clear, concise emails to clients about mortgage opportunities. Use British English. Always include specific figures. Keep emails under 250 words. Respond ONLY with valid JSON.`;
+    
+    const userPrompt = `Write a client email for:
+- Client: ${client.name}
+- Current mortgage: ${mortgage.lender} ${mortgage.product} at ${mortgage.fixedRate}%, balance £${mortgage.balance.toLocaleString()}, expires ${mortgage.endDate}
+- Best available deal: ${deal.lender} ${deal.product} at ${deal.rate}%
+- Break-even analysis: ${breakEven.explanation}
+- ERC cost: £${breakEven.ercCost.toLocaleString()}
+- Monthly saving: £${Math.round(breakEven.monthlySaving)}
+- Recommendation: ${breakEven.recommendedAction}
+
+Respond with JSON: {"subject": "...", "body": "..."}`;
+
+    const result = await this.callGemini(systemPrompt, userPrompt);
+    try {
+      // Gemini sometimes wraps JSON in markdown code blocks
+      const cleaned = result.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      const parsed = JSON.parse(cleaned);
+      return { subject: parsed.subject, body: parsed.body };
+    } catch {
+      return new MockAIProvider().generateClientEmail(client, mortgage, breakEven, deal);
     }
   }
+
+  async generateReportSummary(client: Client, mortgage: Mortgage, breakEven: BreakEvenResult): Promise<string> {
+    const systemPrompt = `You are a UK mortgage analysis AI. Generate clear, professional summaries in British English.`;
+    const userPrompt = `Summarize this mortgage review for ${client.name}: ${mortgage.lender} at ${mortgage.fixedRate}%, balance £${mortgage.balance.toLocaleString()}. ${breakEven.explanation}. Recommendation: ${breakEven.recommendedAction}.`;
+    
+    return this.callGemini(systemPrompt, userPrompt);
+  }
+}
+
+// Provider factory
+let providerCache: { key: string; provider: AIProvider } | null = null;
+
+export function getAIProvider(type: AIProviderType, openaiKey?: string, geminiKey?: string, openaiModel?: string, geminiModel?: string): AIProvider {
+  const cacheKey = `${type}-${openaiKey?.slice(0, 8)}-${geminiKey?.slice(0, 8)}`;
+  
+  if (providerCache && providerCache.key === cacheKey) {
+    return providerCache.provider;
+  }
+
+  let provider: AIProvider;
+  
+  switch (type) {
+    case 'openai':
+      if (openaiKey) {
+        provider = new OpenAIProvider(openaiKey, openaiModel || 'gpt-4o-mini');
+      } else {
+        provider = new MockAIProvider();
+      }
+      break;
+    case 'gemini':
+      if (geminiKey) {
+        provider = new GeminiProvider(geminiKey, geminiModel || 'gemini-2.0-flash');
+      } else {
+        provider = new MockAIProvider();
+      }
+      break;
+    default:
+      provider = new MockAIProvider();
+  }
+
+  providerCache = { key: cacheKey, provider };
   return provider;
 }
 
-export function isMockMode(): boolean {
-  return !AI_API_KEY;
+export function isMockMode(type: AIProviderType): boolean {
+  return type === 'mock';
 }
 
 function getMonthsRemaining(endDate: string): number {

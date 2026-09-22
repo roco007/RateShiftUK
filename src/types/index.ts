@@ -83,4 +83,4 @@ export interface BestAvailableDeal {
   ltv: number;
 }
 
-export type ViewType = 'dashboard' | 'clients' | 'calculator' | 'rates' | 'emails' | 'alerts' | 'reports';
+export type ViewType = 'dashboard' | 'clients' | 'calculator' | 'rates' | 'emails' | 'alerts' | 'reports' | 'settings';

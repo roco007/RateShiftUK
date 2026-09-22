@@ -1,27 +1,46 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useSettings } from '../context/SettingsContext';
 import { calculateBreakEven } from '../services/calculator';
 import { getAIProvider, isMockMode } from '../services/ai';
 import { EmailDraft } from '../types';
-import { Mail, Send, Sparkles, Loader2, CheckCircle, Clock } from 'lucide-react';
+import { Mail, Send, Sparkles, Loader2, CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export function EmailGenerator() {
   const { state, dispatch, getClient, getMortgage } = useApp();
+  const { settings, getActiveAIProvider } = useSettings();
   const [generating, setGenerating] = useState(false);
   const [selectedMortgageId, setSelectedMortgageId] = useState('');
   const [selectedDealIdx, setSelectedDealIdx] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+
+  const activeProvider = getActiveAIProvider();
 
   const handleGenerate = async () => {
-    if (!selectedMortgageId) return;
+    if (!selectedMortgageId) {
+      toast.error('Please select a mortgage');
+      return;
+    }
     
     const mortgage = getMortgage(selectedMortgageId);
     const client = mortgage ? getClient(mortgage.clientId) : null;
-    if (!mortgage || !client) return;
+    if (!mortgage || !client) {
+      toast.error('Client or mortgage not found');
+      return;
+    }
 
     setGenerating(true);
+    setError(null);
     try {
       const breakEven = calculateBreakEven(mortgage, state.bestDeals[selectedDealIdx]);
-      const ai = getAIProvider();
+      const ai = getAIProvider(
+        activeProvider,
+        settings.openaiKey,
+        settings.geminiKey,
+        settings.openaiModel,
+        settings.geminiModel
+      );
       const { subject, body } = await ai.generateClientEmail(client, mortgage, breakEven, state.bestDeals[selectedDealIdx]);
       
       const draft: EmailDraft = {
@@ -36,8 +55,11 @@ export function EmailGenerator() {
       };
       
       dispatch({ type: 'ADD_EMAIL_DRAFT', payload: draft });
-    } catch (error) {
-      console.error('Failed to generate email:', error);
+      toast.success('Email generated successfully!');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to generate email';
+      setError(message);
+      toast.error(message);
     } finally {
       setGenerating(false);
     }
@@ -47,19 +69,41 @@ export function EmailGenerator() {
     const draft = state.emailDrafts.find(d => d.id === draftId);
     if (draft) {
       dispatch({ type: 'UPDATE_EMAIL_DRAFT', payload: { ...draft, status: 'sent' } });
+      toast.success('Email sent to client!');
     }
   };
 
   return (
     <div className="space-y-6">
+      {/* AI Provider Status */}
+      <div className={`rounded-xl border p-4 shadow-sm ${
+        activeProvider === 'mock' ? 'bg-amber-50 border-amber-200' :
+        activeProvider === 'openai' ? 'bg-blue-50 border-blue-200' :
+        'bg-purple-50 border-purple-200'
+      }`}>
+        <div className="flex items-center gap-2">
+          <Sparkles size={16} className={
+            activeProvider === 'mock' ? 'text-amber-600' :
+            activeProvider === 'openai' ? 'text-blue-600' :
+            'text-purple-600'
+          } />
+          <span className="text-sm font-medium">
+            AI Provider: {activeProvider === 'mock' ? 'Mock Mode (No API Key)' : 
+                         activeProvider === 'openai' ? 'OpenAI (GPT)' : 'Google Gemini'}
+          </span>
+          {activeProvider === 'mock' && (
+            <span className="text-xs text-amber-700 ml-2">
+              Add an API key in Settings to use real AI
+            </span>
+          )}
+        </div>
+      </div>
+
       {/* Generator */}
       <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
         <div className="flex items-center gap-2 mb-4">
           <Sparkles size={20} className="text-emerald-600" />
           <h3 className="font-semibold text-gray-900">AI Email Generator</h3>
-          {isMockMode() && (
-            <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Mock Mode</span>
-          )}
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
@@ -107,6 +151,14 @@ export function EmailGenerator() {
             </button>
           </div>
         </div>
+        
+        {error && (
+          <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+            <AlertCircle size={16} />
+            <span>{error}</span>
+          </div>
+        )}
+        
         <p className="text-xs text-gray-500">
           AI will draft a personalised email based on the client's mortgage details, current market rates, and break-even analysis.
         </p>
